@@ -1,62 +1,41 @@
-# Secure Document Service (SDS)
-## Teknisk Uppgift – Senior Javautvecklare
+# Secure Dokument Service (SDS)
 
----
 
-## Syfte
+Detta repo innehåller en enkel API-tjänst för hantering av dokument.
+Du kan göra uppgifterna nedan på det sätt du vill genom att modifiera och utöka den befintliga koden.
 
-Denna uppgift är utformad för att utvärdera arkitekturförståelse, säkerhetsdesign och produktionsmognad.
-
-Fokus ligger på:
-
-- Säkerhetsintegrerad design
-- Organisationsisolering
-- Tydlig lagerstruktur
-- Testbarhet
-- Produktionsberedskap
-
-Du får modifiera och utöka den befintliga koden.
-Du får inte försvaga den befintliga säkerhetsmodellen.
-
----
-
-## Teknisk miljö
+### Teknisk miljö
 
 - Java 25
 - Spring Boot 4
 - Maven
 - OAuth2 Resource Server (JWT)
-- PostgreSQL
+- MySQL
 - OpenShift
 
 Autentisering sker via extern OIDC-leverantör (t.ex. Keycloak eller motsvarande).
 
 ---
 
-# Uppgifter
+## A. Multipla organisationer
 
----
+Systemet ska kunna stödja att det finns flera olika organisationer.
 
-## 1. Organisationsstöd
-
-Systemet ska stödja flera organisationer.
-
-### Krav:
+### Önskad funktionalitet:
 
 - Varje användare tillhör exakt en organisation (`organisation_id` i JWT).
 - All data måste vara strikt isolerad per organisation.
-- Cross-organisation access får inte vara möjlig.
-- Gäller alla endpoints och alla entiteter.
+- Access till andra än sin egen organisation får inte vara möjlig.
 
-Lösningen ska vara arkitekturellt robust, inte beroende av manuella kontroller i controllers.
+Lösningen ska vara arkitekturellt robust (t.ex inte beroende av manuella kontroller i controllers).
 
 ---
 
-## 2. Ny Domän: Case
+## B. Domänmodell & åtkomstkontroll
 
-Inför en ny entitet: **Case**
+### Arende
 
-### Fält:
+Inför en ny entitet **Arende** med nedanstående fält:
 
 - id (UUID)
 - organisationId
@@ -66,91 +45,26 @@ Inför en ny entitet: **Case**
 - createdAt
 - createdBy
 
-### Affärsregler:
+Önskad funktionalitet:
 
-- Case tillhör en organisation.
-- Endast användare med rollen ADMIN får stänga ett case.
-- Stängda case får inte ändras.
-- Dokument kan kopplas till ett case.
-- Dokument och case måste tillhöra samma organisation.
+- Arende tillhör en organisation.
+- Endast användare med rollen ADMIN får stänga ett arende.
+- Stängda arende får inte ändras.
+- Dokument kan kopplas till ett arende.
+- Dokument och arende måste tillhöra samma organisation.
 
----
+### Dokument
 
-## 3. Dokumentklassificering
-
-Utöka Document med klassificering:
+Utöka entiteten Dokument med klassificeringarna:
 
 - PUBLIC
 - INTERNAL
 - CONFIDENTIAL
 - SECRET
 
-### Krav:
+Önskad funktionalitet:
 
 - Klassificering ska styra läsrättigheter.
 - SUPER_ADMIN får läsa alla dokument.
-- Säkerhetslogik ska vara centraliserad.
+- Säkerhetslogiken ska vara centraliserad.
 - Ingen säkerhetslogik får ligga direkt i controllers.
-
----
-
-## 4. Säker filhantering
-
-Vid uppladdning:
-
-- Maximal filstorlek ska definieras.
-- Endast tillåtna content-types.
-- Skydd mot path traversal.
-- Filer får inte lagras i web-root.
-- Ingen exekverbar kod får accepteras.
-
----
-
-## 5. Audit Logging
-
-Implementera strukturerad audit-loggning för:
-
-- Skapande av dokument
-- Uppdateringar
-- Case-ändringar
-- Misslyckade åtkomstförsök
-
-### Krav:
-
-- Logga aktör och organisation.
-- Logga inte känslig information.
-- Skydda mot log injection.
-- Loggning får inte påverka affärslogik.
-
----
-
-## 6. Produktionskrav (OpenShift)
-
-Applikationen ska:
-
-- Köras som non-root.
-- Använda secrets för känslig konfiguration.
-- Definiera resource limits.
-- Ha liveness/readiness probes.
-- Vara redo för horisontell skalning.
-
----
-
-## Leverabler
-
-- Källkod
-- Automatiserade tester
-- README med körinstruktioner
-- Kort designbeskrivning
-- Enkel hotmodell
-
----
-
-## Bedömningskriterier
-
-- Organisationsisolering
-- Säkerhetsdesign
-- Arkitektur och kodstruktur
-- Testkvalitet (inklusive negativa tester)
-- Produktionsmognad
-- Dokumentation

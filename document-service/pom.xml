@@ -9,7 +9,7 @@
 		<relativePath/>
 	</parent>
 
-	<groupId>com.example.sds</groupId>
+	<groupId>se.exempel.sds</groupId>
 	<artifactId>document-service</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
 	<name>document-service</name>

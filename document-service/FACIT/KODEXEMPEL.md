@@ -1,14 +1,6 @@
-# 1. Secure Document Service (SDS)
-## 1.1 Referenslösning
+# Kodexempel – Referensimplementation
 
-Detta dokument innehåller både en enkel och en avancerad lösningsnivå.
-Den avancerade delen ligger direkt under respektive avsnitt.
-
----
-
-# 2. Övergripande Arkitektur
-
-## 2.1 Grundprinciper
+Grundprinciper:
 
 - Controllers är tunna
 - Affärslogik ligger i service-lagret
@@ -16,23 +8,12 @@ Den avancerade delen ligger direkt under respektive avsnitt.
 - Organisation hämtas från JWT
 - All data filtreras per organisation
 - Tester inkluderar negativa scenarier
-- Systemet är redo för produktion
-
-## 2.2 Lagerstruktur
-
-- controller/
-- service/
-- repository/
-- security/
-- domain/
-- config/
-- exception/
 
 ---
 
-# 3. Säkerhetskonfiguration
+# A. Multipla organisationer
 
-## 3.1 Enkel version (Resource Server)
+## A.1 Säkerhetskonfiguration
 
 ```java
 @Configuration
@@ -64,31 +45,9 @@ public class SecurityConfig {
     }
 }
 ```
-## 3.2 Avancerad version (method security)
 
-Aktiverar metodnivå-säkerhet:
-```kod
-@EnableMethodSecurity
-```
-Användning i servicen:
-```java
-@PreAuthorize("hasRole('ADMIN')")
-public void closeCase(UUID id) {
-}
-```
-Detta minskar behovet av manuell rollkontroll i koden.
+## A.2 JWT → organisationsID
 
-# 4. Hantering av organisation från JWT
-
-## 4.1 Principal-modell
-```java
-public record OrganisationPrincipal(
-        String userId,
-        String organisationId
-) {}
-```
-
-## 4.2 JWT -> organisationsID
 ```java
 public class JwtOrganisationConverter
         implements Converter<Jwt, AbstractAuthenticationToken> {
@@ -117,58 +76,109 @@ public class JwtOrganisationConverter
 }
 ```
 
-## 4.3 Organisationskontext
-För mer robust isolering kan en ThreadLocal användas:
+Principal-modell:
 ```java
-public final class OrganisationContext {
+public record OrganisationPrincipal(
+        String userId,
+        String organisationId
+) {}
+```
 
-    private static final ThreadLocal<String> CURRENT =
-            new ThreadLocal<>();
+## A.3 Repository med organisations-filter
 
-    public static void set(String organisationId) {
-        CURRENT.set(organisationId);
-    }
+```java
+public interface DokumentRepository
+        extends JpaRepository<Dokument, UUID> {
 
-    public static String get() {
-        return CURRENT.get();
-    }
+    Optional<Dokument> findByIdAndOrganisationId(
+            UUID id,
+            String organisationId
+    );
 
-    public static void clear() {
-        CURRENT.remove();
-    }
+    List<Dokument> findAllByOrganisationId(
+            String organisationId
+    );
 }
 ```
 
-# 5. Case
+## A.4 Exempel på organisations-test
+
+```java
+@Test
+void shouldPreventCrossOrganisationAccess() {
+
+    // given dokument in organisation A
+
+    // when accessed with organisation B
+
+    // then expect AccessDeniedException
+}
+```
+
+---
+
+# B. Domänmodell & åtkomstkontroll
+
+## B.1 Arende-entitet
+
 ```java
 @Entity
-public class Case {
+public class DokumentArende {
 
     @Id
     private UUID id;
     private String organisationId;
     private String title;
     @Enumerated(EnumType.STRING)
-    private CaseStatus status;
+    private ArendeStatus status;
     private Instant createdAt;
     private String createdBy;
 }
 ```
 ```java
-public enum CaseStatus {
-OPEN,
-CLOSED
+public enum ArendeStatus {
+    OPEN,
+    CLOSED
 }
 ```
-Endast ADMIN får stänga case
-Closed case får inte ändras
-Case måste alltid tillhöra rätt organisation
-Organisation kontrolleras i service-lagret
 
-# 6. Document
+Regler:
+- Endast ADMIN får stänga arende
+- Stängt arende får inte ändras
+- Arende måste tillhöra rätt organisation
+- Organisation kontrolleras i service-lagret
+
+## B.2 ArendeService (affärsregler)
+
+```java
+@Service
+public class ArendeService {
+
+    private final ArendeRepository repository;
+    private final AuthorizationService authorizationService;
+
+    public void closeArende(UUID id,
+                            OrganisationPrincipal principal) {
+
+        DokumentArende arende =
+                repository.findByIdAndOrganisationId(
+                        id,
+                        principal.organisationId()
+                ).orElseThrow();
+
+        authorizationService.assertCloseAccess(arende, principal);
+
+        arende.setStatus(ArendeStatus.CLOSED);
+        repository.save(arende);
+    }
+}
+```
+
+## B.3 Dokument-entitet med klassificering
+
 ```java
 @Entity
-public class Document {
+public class Dokument {
 
     @Id
     private UUID id;
@@ -176,7 +186,7 @@ public class Document {
     private String filename;
     @Enumerated(EnumType.STRING)
     private Classification classification;
-    private UUID caseId;
+    private UUID arendeId;
 }
 ```
 
@@ -189,202 +199,44 @@ public enum Classification {
 }
 ```
 
-Klassificering styr åtkomst
-SUPER_ADMIN får läsa allt
-Policyn ska vara centraliserad i en tjänst
-Ingen säkerhetslogik i controllers
-        
-# 7. Repository med Organisations-filter
-```java
-public interface DocumentRepository
-        extends JpaRepository<Document, UUID> {
+Regler:
+- Klassificering styr åtkomst
+- SUPER_ADMIN får läsa allt
+- Policyn ska vara centraliserad i en tjänst
+- Ingen säkerhetslogik i controllers
 
-    Optional<Document> findByIdAndOrganisationId(
-            UUID id,
-            String organisationId
-    );
+## B.4 Centraliserad auktorisering
 
-    List<Document> findAllByOrganisationId(
-            String organisationId
-    );
-}
-```
-
-# 8. Centraliserad Auktorisering
 ```java
 @Service
-public class DocumentPolicy {
+public class AuthorizationService {
 
-    public void checkReadAccess(
-            Document document,
+    public void assertReadAccess(
+            Dokument dokument,
             OrganisationPrincipal principal
     ) {
-
-        if (!document.getOrganisationId()
+        if (!dokument.getOrganisationId()
                 .equals(principal.organisationId())) {
             throw new AccessDeniedException("Otillåten åtkomst");
         }
 
-        if (document.getClassification() == Classification.SECRET
-                && !hasRole("SUPER_ADMIN")) {
+        if (dokument.getClassification() == Classification.SECRET
+                && !principal.hasRole("SUPER_ADMIN")) {
             throw new AccessDeniedException("Otillräcklig behörighet");
         }
     }
-
-    private boolean hasRole(String role) {
-        return SecurityContextHolder.getContext()
-                .getAuthentication()
-                .getAuthorities()
-                .stream()
-                .anyMatch(a -> a.getAuthority()
-                        .equals("ROLE_" + role));
-    }
 }
 ```
 
-# 9. Case Service (Affärsregler)
-```java
-@Service
-public class CaseService {
+---
 
-    private final CaseRepository repository;
+# Sammanfattning av lösning
 
-    public CaseService(CaseRepository repository) {
-        this.repository = repository;
-    }
-
-    public void closeCase(UUID id,
-                          OrganisationPrincipal principal) {
-
-        Case caseEntity =
-                repository.findByIdAndOrganisationId(
-                        id,
-                        principal.organisationId()
-                ).orElseThrow();
-
-        if (!hasRole("ADMIN")) {
-            throw new AccessDeniedException("Endast ADMIN");
-        }
-
-        caseEntity.setStatus(CaseStatus.CLOSED);
-        repository.save(caseEntity);
-    }
-
-    private boolean hasRole(String role) {
-        return SecurityContextHolder.getContext()
-                .getAuthentication()
-                .getAuthorities()
-                .stream()
-                .anyMatch(a -> a.getAuthority()
-                        .equals("ROLE_" + role));
-    }
-}
-```
-
-# 10. Audit Logging
-```java
-@Service
-public class AuditService {
-
-    private static final Logger log =
-            LoggerFactory.getLogger(AuditService.class);
-
-    public void logEvent(String actor, String organisation,
-                         String action, String entityId) {
-
-        Map<String, String> event = Map.of(
-                "actor", actor,
-                "organisation", organisation,
-                "action", action,
-                "entityId", entityId,
-                "timestamp", Instant.now().toString()
-        );
-
-        log.info("AUDIT_EVENT {}", event);
-    }
-}
-```
-
-# 11. Säker Filuppladdning
-```java
-@Service
-public class FileStorageService {
-
-    private static final long MAX_SIZE = 5_000_000;
-
-    public String store(MultipartFile file) throws IOException {
-
-        if (file.getSize() > MAX_SIZE) {
-            throw new IllegalArgumentException("File too large");
-        }
-
-        if (!List.of("application/pdf", "text/plain")
-                .contains(file.getContentType())) {
-            throw new IllegalArgumentException("Invalid file type");
-        }
-
-        String filename = UUID.randomUUID() + ".bin";
-
-        Path target = Paths.get("/data/uploads").resolve(filename);
-
-        Files.copy(file.getInputStream(), target);
-
-        return filename;
-    }
-}
-```
-
-Max filstorlek
-Content-type whitelist
-Filer lagras utanför web-root
-UUID-baserade filnamn
-Ingen exekverbar kod
-
-# 12. OpenShift-kompatibel Dockerfile
-```bash
-FROM eclipse-temurin:25-jre-alpine
-
-RUN addgroup -S app && adduser -S app -G app
-
-USER app
-
-COPY target/sds.jar app.jar
-
-ENTRYPOINT ["java", "-jar", "/app.jar"]
-```
-
-Max filstorlek
-Content-type whitelist
-Filer lagras utanför web-root
-UUID-baserade filnamn
-Ingen exekverbar kod
-
-# 13. Exempel på Organisations-test
-```java
-@Test
-void shouldPreventCrossOrganisationAccess() {
-
-    // given document in organisation A
-
-    // when accessed with organisation B
-
-    // then expect AccessDeniedE
-}
-```
-Non-root container
-Secrets för känslig konfiguration
-Resource limits
-Liveness/readiness probes
-Horisontell skalbarhet
-
-
-# Sammanfattning av Lösning
 En stark lösning har:
-Centraliserad auktorisering
-Organisation från JWT
-Repository-filter
-Negativa tester
-Policy-baserad design
-Ren lagerstruktur
-Produktionsklar container
 
+- Centraliserad auktorisering
+- Organisation från JWT
+- Repository-filter på organisation
+- Negativa säkerhetstester
+- Policy-baserad design
+- Ren lagerstruktur

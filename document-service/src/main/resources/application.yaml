@@ -1,6 +1,6 @@
 spring:
   application:
-    name: document-service
+    name: dokument-service
   jpa:
     open-in-view: false   # Avoid lazy-loading pitfalls over HTTP
 
