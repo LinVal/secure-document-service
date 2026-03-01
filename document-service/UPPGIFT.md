@@ -3,16 +3,6 @@
 
 Detta repo innehåller en enkel API-tjänst för hantering av dokument.
 Du kan göra uppgifterna nedan på det sätt du vill genom att modifiera och utöka den befintliga koden.
-
-### Teknisk miljö
-
-- Java 25
-- Spring Boot 4
-- Maven
-- OAuth2 Resource Server (JWT)
-- MySQL
-- OpenShift
-
 Autentisering sker via extern OIDC-leverantör (t.ex. Keycloak eller motsvarande).
 
 ---
@@ -31,40 +21,40 @@ Lösningen ska vara arkitekturellt robust (t.ex inte beroende av manuella kontro
 
 ---
 
-## B. Domänmodell & åtkomstkontroll
+## B. Utöka befintligt API
 
-### Arende
+Den befintliga `DokumentController` exponerar idag en lista med dokument men saknar möjligheten
+att hämta ett enskilt dokument via ID.
 
-Inför en ny entitet **Arende** med nedanstående fält:
+Implementera följande endpoint i `DokumentController`:
 
-- id (UUID)
-- organisationId
-- title
-- description
-- status (OPEN / CLOSED)
-- createdAt
-- createdBy
+| Metod | URL | Beskrivning |
+|-------|-----|-------------|
+| `GET` | `/api/dokuments/{id}` | Hämta ett specifikt dokument via ID |
 
-Önskad funktionalitet:
+Krav:
 
-- Arende tillhör en organisation.
-- Endast användare med rollen ADMIN får stänga ett arende.
-- Stängda arende får inte ändras.
-- Dokument kan kopplas till ett arende.
-- Dokument och arende måste tillhöra samma organisation.
+- Organisationsisolering måste gälla – en användare får aldrig se ett dokument från en annan organisation.
+- Returnera `404 Not Found` om dokumentet inte finns eller tillhör annan organisation.
+- Ingen säkerhetslogik får ligga i controllern.
 
-### Dokument
+---
 
-Utöka entiteten Dokument med klassificeringarna:
+## C. Filtrera arenden på status
 
-- PUBLIC
-- INTERNAL
-- CONFIDENTIAL
-- SECRET
+`GET /api/arenden` returnerar idag alla arenden för organisationen oavsett status.
+Utöka endpointen med en valfri frågeparameter för att filtrera på status.
 
-Önskad funktionalitet:
+Önskat beteende:
 
-- Klassificering ska styra läsrättigheter.
-- SUPER_ADMIN får läsa alla dokument.
-- Säkerhetslogiken ska vara centraliserad.
-- Ingen säkerhetslogik får ligga direkt i controllers.
+| Request | Svar |
+|---------|------|
+| `GET /api/arenden` | Alla arenden (oförändrat) |
+| `GET /api/arenden?status=OPEN` | Endast öppna arenden |
+| `GET /api/arenden?status=CLOSED` | Endast stängda arenden |
+
+Krav:
+
+- Ändringen berör repository, service och controller.
+- Organisationsisolering gäller oavsett filter.
+- Ingen logik får ligga i controllern.

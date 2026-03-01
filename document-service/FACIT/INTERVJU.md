@@ -6,7 +6,7 @@ Fokusera på resonemang, riskmedvetenhet och hur kandidaten prioriterar i en ver
 
 ---
 
-## 🔹 A. Multipla organisationer
+## A. Multipla organisationer
 
 Börja med öppna frågor om organisations-isolering och JWT-hantering:
 
@@ -19,7 +19,7 @@ Börja med öppna frågor om organisations-isolering och JWT-hantering:
 - Hur verifierar du audience?
 - Hur skiljer du scope från roller?
 
-### 🔎 Senior-svar bör inkludera:
+### Senior-svar bör inkludera:
 
 - Centralisering av ansvar
 - Risk för horizontal privilege escalation
@@ -34,30 +34,46 @@ En senior bör förstå att tokenen är en verifierad input – inte en absolut 
 
 ---
 
-## 🔹 B. Domänmodell & åtkomstkontroll
+## B. Utöka befintligt API
 
-Här testar du domänförståelse, affärsregler och centraliserad auktorisering.
+Testar om kandidaten förstår thin-controller-mönstret och var logik hör hemma.
 
 Frågor:
 
-- Varför kontrolleras organisation i service-lagret och inte i controller?
-- Hur säkerställer du att dokument inte kan kopplas till fel organisation?
-- Vad händer vid race condition?
-- Hur hanterar du att ett stängt arende inte ska kunna ändras?
-- Hur designade du åtkomst baserat på klassificering?
-- Varför centraliserade du policyn?
-- Hur skulle du ändra designen om nya klassificeringsnivåer införs?
+- Hur implementerade du `GET /api/dokuments/{id}`?
+- Var lade du organisations-kontrollen – i controller eller service?
+- Vad returnerar du om dokumentet inte finns?
+- Vad returnerar du om dokumentet finns men tillhör en annan organisation?
+- Varför just 404 och inte 403 i det fallet?
 
-### Senior bör prata om:
+### Senior-svar bör inkludera:
 
-- Transaktioner och domäninvarians
-- Skydd mot inkonsekvent data
-- Separation mellan presentation och affärslogik
-- Open/Closed Principle för policyn
-- Policy engine kontra if-satser i kod
-- Hur systemet kan växa utan att bli svårt att underhålla
+- Medveten skillnad mellan 404 och 403 (information disclosure)
+- Controller delegerar direkt, innehåller ingen logik
+- Repository-metoden `findByIdAndOrganisationId` som enda garanti för isolering
+- Testfall som verifierar att cross-org access ger 404, inte 200
 
-En bra lösning ska vara enkel att utöka utan att ändra överallt.
+---
+
+## C. Filtrera arenden på status
+
+Testar förståelse för Spring Data-queries, lagerstruktur och bakåtkompatibilitet.
+
+Frågor:
+
+- Vilka lager behövde du ändra?
+- Hur definierade du query:n i repository-lagret?
+- Hur hanterar du anropet utan `?status=`-parameter?
+- Var valideras att status-värdet är giltigt?
+- Vad skulle du göra om filtren blev fler – t.ex. status + skapad-datum?
+
+### Senior-svar bör inkludera:
+
+- Spring Data-namnkonvention kontra `@Query` – när passar vad
+- Nullable parameter i service-lagret med tydlig grenlogik
+- Bakåtkompatibilitet – befintliga anrop utan parameter fortsätter fungera
+- Tankar kring skalbarhet (t.ex. Specification/Criteria API vid många filter)
+- Validering av enum-värde sker automatiskt av Spring via `@RequestParam`
 
 ---
 

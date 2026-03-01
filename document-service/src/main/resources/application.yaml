@@ -61,7 +61,8 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: create-drop
+      ddl-auto: none          # Schema definieras manuellt i schema.sql
+    defer-datasource-initialization: true   # Kör schema.sql innan Hibernate startar
     show-sql: true
     properties:
       hibernate:

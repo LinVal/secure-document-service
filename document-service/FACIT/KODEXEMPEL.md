@@ -117,116 +117,103 @@ void shouldPreventCrossOrganisationAccess() {
 
 ---
 
-# B. Domänmodell & åtkomstkontroll
+# B. Utöka befintligt API
 
-## B.1 Arende-entitet
+## B.1 Controller – GET /api/dokuments/{id}
+
+Controllern är tre rader. All logik delegeras till service-lagret.
 
 ```java
-@Entity
-public class DokumentArende {
-
-    @Id
-    private UUID id;
-    private String organisationId;
-    private String title;
-    @Enumerated(EnumType.STRING)
-    private ArendeStatus status;
-    private Instant createdAt;
-    private String createdBy;
-}
-```
-```java
-public enum ArendeStatus {
-    OPEN,
-    CLOSED
+@GetMapping("/{id}")
+public DokumentResponse getDokument(
+        @PathVariable UUID id,
+        @AuthenticationPrincipal OrganisationPrincipal principal) {
+    return dokumentService.getDokument(id, principal);
 }
 ```
 
-Regler:
-- Endast ADMIN får stänga arende
-- Stängt arende får inte ändras
-- Arende måste tillhöra rätt organisation
-- Organisation kontrolleras i service-lagret
-
-## B.2 ArendeService (affärsregler)
+## B.2 Service – hämta och auktorisera
 
 ```java
-@Service
-public class ArendeService {
+public DokumentResponse getDokument(UUID id, OrganisationPrincipal principal) {
 
-    private final ArendeRepository repository;
-    private final AuthorizationService authorizationService;
+    Dokument dokument = dokumentRepository
+            .findByIdAndOrganisationId(id, principal.organisationId())
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
 
-    public void closeArende(UUID id,
-                            OrganisationPrincipal principal) {
+    authorizationService.assertReadAccess(dokument, principal);
 
-        DokumentArende arende =
-                repository.findByIdAndOrganisationId(
-                        id,
-                        principal.organisationId()
-                ).orElseThrow();
-
-        authorizationService.assertCloseAccess(arende, principal);
-
-        arende.setStatus(ArendeStatus.CLOSED);
-        repository.save(arende);
-    }
+    return DokumentResponse.from(dokument);
 }
 ```
 
-## B.3 Dokument-entitet med klassificering
+`findByIdAndOrganisationId` returnerar `empty` om ID:t finns men tillhör annan organisation.
+Det ger `404 Not Found` – inte `403` – vilket undviker att avslöja att resursen existerar.
+
+## B.3 Test – cross-org ger 404
 
 ```java
-@Entity
-public class Dokument {
+@Test
+void getDokument_wrongOrganisation_returns404() {
 
-    @Id
-    private UUID id;
-    private String organisationId;
-    private String filename;
-    @Enumerated(EnumType.STRING)
-    private Classification classification;
-    private UUID arendeId;
+    // given dokument tillhör org-A
+
+    // when hämtas med principal för org-B
+
+    // then 404 Not Found
 }
 ```
 
+---
+
+# C. Filtrera arenden på status
+
+## C.1 Repository – ny Spring Data-metod
+
 ```java
-public enum Classification {
-    PUBLIC,
-    INTERNAL,
-    CONFIDENTIAL,
-    SECRET
+List<DokumentArende> findAllByOrganisationIdAndStatus(
+        String organisationId,
+        ArendeStatus status
+);
+```
+
+Spring Data härleder SQL från metodnamnet – ingen `@Query` behövs.
+`organisationId` kombineras alltid med statusfiltret.
+
+## C.2 Service – hantera nullable status
+
+```java
+public List<ArendeResponse> listArenden(
+        ArendeStatus status,
+        OrganisationPrincipal principal) {
+
+    List<DokumentArende> arenden = (status != null)
+            ? arendeRepository.findAllByOrganisationIdAndStatus(
+                    principal.organisationId(), status)
+            : arendeRepository.findAllByOrganisationId(
+                    principal.organisationId());
+
+    return arenden.stream()
+            .map(ArendeResponse::from)
+            .toList();
 }
 ```
 
-Regler:
-- Klassificering styr åtkomst
-- SUPER_ADMIN får läsa allt
-- Policyn ska vara centraliserad i en tjänst
-- Ingen säkerhetslogik i controllers
+`null`-status returnerar hela listan – befintliga anrop utan parameter fortsätter fungera.
 
-## B.4 Centraliserad auktorisering
+## C.3 Controller – valfri frågeparameter
 
 ```java
-@Service
-public class AuthorizationService {
-
-    public void assertReadAccess(
-            Dokument dokument,
-            OrganisationPrincipal principal
-    ) {
-        if (!dokument.getOrganisationId()
-                .equals(principal.organisationId())) {
-            throw new AccessDeniedException("Otillåten åtkomst");
-        }
-
-        if (dokument.getClassification() == Classification.SECRET
-                && !principal.hasRole("SUPER_ADMIN")) {
-            throw new AccessDeniedException("Otillräcklig behörighet");
-        }
-    }
+@GetMapping
+public List<ArendeResponse> listArenden(
+        @RequestParam(required = false) ArendeStatus status,
+        @AuthenticationPrincipal OrganisationPrincipal principal) {
+    return arendeService.listArenden(status, principal);
 }
 ```
+
+Spring validerar automatiskt att `?status=`-värdet matchar ett giltigt `ArendeStatus`-värde
+och returnerar `400 Bad Request` annars.
 
 ---
 

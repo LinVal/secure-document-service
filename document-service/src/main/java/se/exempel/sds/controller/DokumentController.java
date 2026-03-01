@@ -35,13 +35,6 @@ public class DokumentController {
         return dokumentService.listDokuments(principal);
     }
 
-    @GetMapping("/{id}")
-    public DokumentResponse getDokument(
-            @PathVariable UUID id,
-            @AuthenticationPrincipal OrganisationPrincipal principal) {
-        return dokumentService.getDokument(id, principal);
-    }
-
     @GetMapping("/by-arende/{arendeId}")
     public List<DokumentResponse> listDokumentsByArende(
             @PathVariable UUID arendeId,

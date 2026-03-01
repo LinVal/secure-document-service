@@ -56,38 +56,52 @@ Detta skyddar mot horizontal privilege escalation.
 
 ---
 
-# B. Domänmodell & åtkomstkontroll
+# B. Utöka befintligt API
 
-## B.1 Arende
+## B.1 Lösning: GET /api/dokuments/{id}
 
-Arende är en separat domänentitet som också tillhör en organisation.
-Den innehåller en status (OPEN/CLOSED) och metadata om skapandet.
+Endpoint-metoden är tre till fyra rader och delegerar direkt till service-lagret.
+Ingen organisations- eller säkerhetskontroll i controllern.
 
-Affärsregler:
+Service-lagret hämtar dokumentet via `findByIdAndOrganisationId` – organisationsisolering
+garanteras av att repository-metoden alltid kräver `organisationId` som parameter.
 
-- Endast användare med ADMIN-roll får stänga ett arende.
-- Ett stängt arende får inte ändras.
-- Dokument som kopplas till ett arende måste tillhöra samma organisation.
-- Alla regler kontrolleras i service-lagret.
+Vid saknat ID eller fel organisation kastas ett undantag som `GlobalExceptionHandler`
+mappar till `404 Not Found`. Att returnera 404 (och inte 403) vid cross-org-access är
+ett medvetet val för att undvika informationsläcka om vilka resurser som existerar.
 
-## B.2 Dokument & klassificering
+## B.2 Viktiga designprinciper
 
-Inför en centraliserad policy-tjänst (t.ex. `AuthorizationService`).
+- `findById()` utan `organisationId` ska aldrig användas.
+- Controllern innehåller ingen logik – enbart parameter-mappning och delegering.
+- Tester ska verifiera att fel organisations-ID ger 404, inte 200 eller 403.
 
-Ansvar:
+---
 
-- Kontroll av roller
-- Kontroll av dokumentklassificering
-- Kontroll av organisationstillhörighet
+# C. Filtrera arenden på status
 
-Regler:
+## C.1 Lösning
 
-- Dokument har en klassificering (enum).
-- SECRET kräver SUPER_ADMIN.
-- Policyn ska vara centraliserad.
-- Ingen säkerhetslogik ska ligga i controllers.
+Ändringen berör tre lager: repository, service och controller.
 
-Detta gör systemet utbyggbart och konsekvent.
+**Repository** – ny Spring Data-metod med namnbaserad query:
+
+```
+findAllByOrganisationIdAndStatus(String organisationId, ArendeStatus status)
+```
+
+**Service** – `listArenden` tar emot en nullable `ArendeStatus`. Om den är `null` används
+befintlig `findAllByOrganisationId`, annars den nya metoden med statusfilter.
+
+**Controller** – `listArenden` utökas med `@RequestParam(required = false) ArendeStatus status`
+som skickas vidare till service-lagret.
+
+## C.2 Viktiga designprinciper
+
+- `organisationId` kombineras alltid med statusfiltret – aldrig ett anrop utan org-filter.
+- `null`-status returnerar hela listan (bakåtkompatibelt).
+- Spring Data härleder SQL automatiskt från metodnamnet – ingen `@Query` behövs.
+- Controllern innehåller noll logik – enbart parameter-mappning.
 
 ---
 
@@ -97,7 +111,7 @@ Detta gör systemet utbyggbart och konsekvent.
 
 - Test av organisationsisolering.
 - Test av rollbaserad åtkomst.
-- Negativa säkerhetstester (403-scenarier).
+- Negativa säkerhetstester (403/404-scenarier).
 - Integrationstester med verklig databas (t.ex. Testcontainers).
 
 ## Syfte
