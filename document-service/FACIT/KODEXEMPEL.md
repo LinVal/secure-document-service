@@ -22,7 +22,6 @@ Grundprinciper:
 @Bean
 SecurityFilterChain filterChain(HttpSecurity http, JwtDecoder jwtDecoder) {
     http
-        ...
         .oauth2ResourceServer(oauth -> oauth
             .jwt(jwt -> jwt
                 .decoder(jwtDecoder)
@@ -46,7 +45,7 @@ curl -s -X POST http://localhost:8080/dev/token \
 ```java
 // Ta bort @Disabled när convert() är implementerad – alla 9 tester ska vara gröna.
 @Disabled("Uppgift A ej implementerad")
-class JwtOrganisationConverterTest { ... }
+class JwtOrganisationConverterTest {  }
 ```
 
 ---
