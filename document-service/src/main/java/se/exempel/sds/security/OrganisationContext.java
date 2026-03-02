@@ -1,18 +1,6 @@
 package se.exempel.sds.security;
 
-/**
- * ThreadLocal holder for the current request's OrganisationPrincipal.
- *
- * <p>Lifecycle:
- * <ol>
- *   <li>Set by {@link JwtOrganisationConverter} during authentication.</li>
- *   <li>Cleared by the cleanup filter registered in {@link SecurityConfig}
- *       in a {@code finally} block after the response is written.</li>
- * </ol>
- *
- * <p>Using {@link ThreadLocal#remove()} (not {@code set(null)}) prevents
- * memory leaks in thread-pool environments such as Tomcat.
- */
+
 public final class OrganisationContext {
 
     private static final ThreadLocal<OrganisationPrincipal> HOLDER = new ThreadLocal<>();
@@ -38,7 +26,6 @@ public final class OrganisationContext {
         return principal;
     }
 
-    /** Must be called at end of every request to avoid ThreadLocal leaks. */
     public static void clear() {
         HOLDER.remove();
     }

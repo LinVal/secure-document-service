@@ -9,16 +9,10 @@ import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.UUID;
 
-/**
- * Thin controller – no business or security logic here.
- * All decisions are delegated to {@link DokumentService} and
- * {@link se.exempel.sds.service.AuthorizationService}.
- */
 @RestController
 @RequestMapping("/api/dokuments")
 public class DokumentController {
@@ -64,17 +58,5 @@ public class DokumentController {
             @PathVariable UUID id,
             @AuthenticationPrincipal OrganisationPrincipal principal) {
         dokumentService.deleteDokument(id, principal);
-    }
-
-    /**
-     * Attach or replace the physical file for an existing dokument.
-     * File validation (size, content-type, filename safety) happens in the service layer.
-     */
-    @PostMapping("/{id}/upload")
-    public DokumentResponse uploadFile(
-            @PathVariable UUID id,
-            @RequestParam("file") MultipartFile file,
-            @AuthenticationPrincipal OrganisationPrincipal principal) {
-        return dokumentService.uploadFile(id, file, principal);
     }
 }

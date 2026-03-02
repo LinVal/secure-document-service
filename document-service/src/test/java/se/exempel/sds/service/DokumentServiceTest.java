@@ -3,7 +3,7 @@ package se.exempel.sds.service;
 import se.exempel.sds.domain.ArendeStatus;
 import se.exempel.sds.domain.Classification;
 import se.exempel.sds.domain.Dokument;
-import se.exempel.sds.domain.DokumentArende;
+import se.exempel.sds.domain.Arende;
 import se.exempel.sds.dto.CreateDokumentRequest;
 import se.exempel.sds.dto.DokumentResponse;
 import se.exempel.sds.dto.UpdateDokumentRequest;
@@ -31,50 +31,36 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- * Uses the REAL AuthorizationService (no mock) to test the full integration
- * between DokumentService and its access-control logic.
- */
 @ExtendWith(MockitoExtension.class)
 class DokumentServiceTest {
 
-    // Real authorization logic – not mocked
     private final AuthorizationService authorizationService = new AuthorizationService();
     private final AuditService auditService = new AuditService();
-    private final FileValidator fileValidator = mock(FileValidator.class);
-    private final FileStorageService fileStorageService = mock(FileStorageService.class);
     private final DokumentRepository dokumentRepository = mock(DokumentRepository.class);
     private final ArendeRepository arendeRepository = mock(ArendeRepository.class);
 
     private final DokumentService dokumentService = new DokumentService(
-            dokumentRepository, arendeRepository, authorizationService,
-            auditService, fileValidator, fileStorageService);
+            dokumentRepository, arendeRepository, authorizationService, auditService);
 
     // ── getDokument ──────────────────────────────────────────────────────────
 
     @Test
     void getDokument_shouldReturn404_whenDokumentBelongsToOtherOrganisation() {
         UUID id = UUID.randomUUID();
-        // Repository returns empty because organisationId doesn't match
         when(dokumentRepository.findByIdAndOrganisationId(id, "organisation-B"))
                 .thenReturn(Optional.empty());
 
-        OrganisationPrincipal principal = principal("user1", "organisation-B", "USER");
-
-        assertThatThrownBy(() -> dokumentService.getDokument(id, principal))
+        assertThatThrownBy(() -> dokumentService.getDokument(id, principal("user1", "organisation-B", "USER")))
                 .isInstanceOf(NoSuchElementException.class);
     }
 
     @Test
     void getDokument_shouldDeny_forSecretDokumentWithoutSuperAdmin() {
         UUID id = UUID.randomUUID();
-        Dokument secretDoc = dokument(id, Classification.SECRET);
         when(dokumentRepository.findByIdAndOrganisationId(id, "organisation-A"))
-                .thenReturn(Optional.of(secretDoc));
+                .thenReturn(Optional.of(dokument(id, Classification.SECRET)));
 
-        OrganisationPrincipal principal = principal("user1", "organisation-A", "USER");
-
-        assertThatThrownBy(() -> dokumentService.getDokument(id, principal))
+        assertThatThrownBy(() -> dokumentService.getDokument(id, principal("user1", "organisation-A", "USER")))
                 .isInstanceOf(AccessDeniedException.class)
                 .hasMessageContaining("SECRET");
     }
@@ -82,13 +68,10 @@ class DokumentServiceTest {
     @Test
     void getDokument_shouldAllow_forSecretDokumentWithSuperAdmin() {
         UUID id = UUID.randomUUID();
-        Dokument secretDoc = dokument(id, Classification.SECRET);
         when(dokumentRepository.findByIdAndOrganisationId(id, "organisation-A"))
-                .thenReturn(Optional.of(secretDoc));
+                .thenReturn(Optional.of(dokument(id, Classification.SECRET)));
 
-        OrganisationPrincipal principal = principal("sa1", "organisation-A", "SUPER_ADMIN");
-
-        DokumentResponse response = dokumentService.getDokument(id, principal);
+        DokumentResponse response = dokumentService.getDokument(id, principal("sa1", "organisation-A", "SUPER_ADMIN"));
         assertThat(response.classification()).isEqualTo(Classification.SECRET);
     }
 
@@ -96,30 +79,25 @@ class DokumentServiceTest {
 
     @Test
     void listDokuments_shouldSilentlyFilterOut_secretDokumentsForNonSuperAdmin() {
-        Dokument publicDoc = dokument(UUID.randomUUID(), Classification.PUBLIC);
-        Dokument secretDoc = dokument(UUID.randomUUID(), Classification.SECRET);
         when(dokumentRepository.findAllByOrganisationId("organisation-A"))
-                .thenReturn(List.of(publicDoc, secretDoc));
+                .thenReturn(List.of(
+                        dokument(UUID.randomUUID(), Classification.PUBLIC),
+                        dokument(UUID.randomUUID(), Classification.SECRET)));
 
-        OrganisationPrincipal principal = principal("user1", "organisation-A", "USER");
+        List<DokumentResponse> result = dokumentService.listDokuments(principal("user1", "organisation-A", "USER"));
 
-        List<DokumentResponse> result = dokumentService.listDokuments(principal);
-
-        // SECRET dokument must not appear – not even as a 403
         assertThat(result).hasSize(1);
         assertThat(result.getFirst().classification()).isEqualTo(Classification.PUBLIC);
     }
 
     @Test
     void listDokuments_shouldShowAllClassifications_forSuperAdmin() {
-        Dokument publicDoc = dokument(UUID.randomUUID(), Classification.PUBLIC);
-        Dokument secretDoc = dokument(UUID.randomUUID(), Classification.SECRET);
         when(dokumentRepository.findAllByOrganisationId("organisation-A"))
-                .thenReturn(List.of(publicDoc, secretDoc));
+                .thenReturn(List.of(
+                        dokument(UUID.randomUUID(), Classification.PUBLIC),
+                        dokument(UUID.randomUUID(), Classification.SECRET)));
 
-        OrganisationPrincipal principal = principal("sa1", "organisation-A", "SUPER_ADMIN");
-
-        List<DokumentResponse> result = dokumentService.listDokuments(principal);
+        List<DokumentResponse> result = dokumentService.listDokuments(principal("sa1", "organisation-A", "SUPER_ADMIN"));
 
         assertThat(result).hasSize(2);
     }
@@ -130,11 +108,11 @@ class DokumentServiceTest {
     void createDokument_shouldSucceed_whenNoArendeLinked() {
         when(dokumentRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        OrganisationPrincipal principal = principal("user1", "organisation-A", "USER");
         CreateDokumentRequest request = new CreateDokumentRequest(
-                "Title", null, null, null, null, Classification.PUBLIC, null);
+                "Title", null, Classification.PUBLIC, null);
 
-        assertThatNoException().isThrownBy(() -> dokumentService.createDokument(request, principal));
+        assertThatNoException().isThrownBy(() ->
+                dokumentService.createDokument(request, principal("user1", "organisation-A", "USER")));
 
         verify(arendeRepository, never()).findByIdAndOrganisationId(any(), any());
     }
@@ -142,15 +120,14 @@ class DokumentServiceTest {
     @Test
     void createDokument_shouldThrow_whenLinkedArendeIsClosed() {
         UUID arendeId = UUID.randomUUID();
-        DokumentArende closedArende = dokumentArende(arendeId);
         when(arendeRepository.findByIdAndOrganisationId(arendeId, "organisation-A"))
-                .thenReturn(Optional.of(closedArende));
+                .thenReturn(Optional.of(closedArende(arendeId)));
 
-        OrganisationPrincipal principal = principal("user1", "organisation-A", "USER");
         CreateDokumentRequest request = new CreateDokumentRequest(
-                "Title", null, null, null, null, Classification.PUBLIC, arendeId);
+                "Title", null, Classification.PUBLIC, arendeId);
 
-        assertThatThrownBy(() -> dokumentService.createDokument(request, principal))
+        assertThatThrownBy(() ->
+                dokumentService.createDokument(request, principal("user1", "organisation-A", "USER")))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("CLOSED");
     }
@@ -158,15 +135,14 @@ class DokumentServiceTest {
     @Test
     void createDokument_shouldThrow_whenArendeBelongsToOtherOrganisation() {
         UUID arendeId = UUID.randomUUID();
-        // Repository returns empty – arende exists but in a different organisation
         when(arendeRepository.findByIdAndOrganisationId(arendeId, "organisation-A"))
                 .thenReturn(Optional.empty());
 
-        OrganisationPrincipal principal = principal("user1", "organisation-A", "USER");
         CreateDokumentRequest request = new CreateDokumentRequest(
-                "Title", null, null, null, null, Classification.PUBLIC, arendeId);
+                "Title", null, Classification.PUBLIC, arendeId);
 
-        assertThatThrownBy(() -> dokumentService.createDokument(request, principal))
+        assertThatThrownBy(() ->
+                dokumentService.createDokument(request, principal("user1", "organisation-A", "USER")))
                 .isInstanceOf(NoSuchElementException.class);
     }
 
@@ -178,10 +154,10 @@ class DokumentServiceTest {
         when(dokumentRepository.findByIdAndOrganisationId(id, "organisation-A"))
                 .thenReturn(Optional.empty());
 
-        OrganisationPrincipal principal = principal("user1", "organisation-A", "USER");
-        UpdateDokumentRequest request = new UpdateDokumentRequest("New title", null, Classification.PUBLIC);
-
-        assertThatThrownBy(() -> dokumentService.updateDokument(id, request, principal))
+        assertThatThrownBy(() ->
+                dokumentService.updateDokument(id,
+                        new UpdateDokumentRequest("New title", null, Classification.PUBLIC),
+                        principal("user1", "organisation-A", "USER")))
                 .isInstanceOf(NoSuchElementException.class);
     }
 
@@ -191,10 +167,10 @@ class DokumentServiceTest {
         when(dokumentRepository.findByIdAndOrganisationId(id, "organisation-A"))
                 .thenReturn(Optional.of(dokument(id, Classification.SECRET)));
 
-        OrganisationPrincipal principal = principal("user1", "organisation-A", "USER");
-        UpdateDokumentRequest request = new UpdateDokumentRequest("New title", null, Classification.SECRET);
-
-        assertThatThrownBy(() -> dokumentService.updateDokument(id, request, principal))
+        assertThatThrownBy(() ->
+                dokumentService.updateDokument(id,
+                        new UpdateDokumentRequest("New title", null, Classification.SECRET),
+                        principal("user1", "organisation-A", "USER")))
                 .isInstanceOf(AccessDeniedException.class)
                 .hasMessageContaining("SECRET");
     }
@@ -207,9 +183,7 @@ class DokumentServiceTest {
         when(dokumentRepository.findByIdAndOrganisationId(id, "organisation-A"))
                 .thenReturn(Optional.empty());
 
-        OrganisationPrincipal principal = principal("user1", "organisation-A", "USER");
-
-        assertThatThrownBy(() -> dokumentService.deleteDokument(id, principal))
+        assertThatThrownBy(() -> dokumentService.deleteDokument(id, principal("user1", "organisation-A", "USER")))
                 .isInstanceOf(NoSuchElementException.class);
     }
 
@@ -220,14 +194,13 @@ class DokumentServiceTest {
         when(dokumentRepository.findByIdAndOrganisationId(id, "organisation-A"))
                 .thenReturn(Optional.of(doc));
 
-        OrganisationPrincipal principal = principal("user1", "organisation-A", "USER");
-
-        assertThatNoException().isThrownBy(() -> dokumentService.deleteDokument(id, principal));
+        assertThatNoException().isThrownBy(() ->
+                dokumentService.deleteDokument(id, principal("user1", "organisation-A", "USER")));
 
         verify(dokumentRepository).delete(doc);
     }
 
-    // ── listDokumentsByArende ───────────────────────────────────────────────────
+    // ── listDokumentsByArende ────────────────────────────────────────────────
 
     @Test
     void listDokumentsByArende_shouldReturn404_whenArendeNotFound() {
@@ -235,16 +208,15 @@ class DokumentServiceTest {
         when(arendeRepository.findByIdAndOrganisationId(arendeId, "organisation-A"))
                 .thenReturn(Optional.empty());
 
-        OrganisationPrincipal principal = principal("user1", "organisation-A", "USER");
-
-        assertThatThrownBy(() -> dokumentService.listDokumentsByArende(arendeId, principal))
+        assertThatThrownBy(() ->
+                dokumentService.listDokumentsByArende(arendeId, principal("user1", "organisation-A", "USER")))
                 .isInstanceOf(NoSuchElementException.class);
     }
 
     @Test
     void listDokumentsByArende_shouldFilterSecretDokuments_forNonSuperAdmin() {
         UUID arendeId = UUID.randomUUID();
-        DokumentArende openArende = DokumentArende.builder()
+        Arende openArende = Arende.builder()
                 .id(arendeId).organisationId("organisation-A")
                 .title("Arende").status(ArendeStatus.OPEN).createdBy("test").build();
 
@@ -255,9 +227,8 @@ class DokumentServiceTest {
                         dokument(UUID.randomUUID(), Classification.INTERNAL),
                         dokument(UUID.randomUUID(), Classification.SECRET)));
 
-        OrganisationPrincipal principal = principal("user1", "organisation-A", "USER");
-
-        List<DokumentResponse> result = dokumentService.listDokumentsByArende(arendeId, principal);
+        List<DokumentResponse> result = dokumentService.listDokumentsByArende(
+                arendeId, principal("user1", "organisation-A", "USER"));
 
         assertThat(result).hasSize(1);
         assertThat(result.getFirst().classification()).isEqualTo(Classification.INTERNAL);
@@ -283,13 +254,9 @@ class DokumentServiceTest {
                 .build();
     }
 
-    private static DokumentArende dokumentArende(UUID id) {
-        return DokumentArende.builder()
-                .id(id)
-                .organisationId("organisation-A")
-                .title("Test arende")
-                .status(ArendeStatus.CLOSED)
-                .createdBy("test-user")
-                .build();
+    private static Arende closedArende(UUID id) {
+        return Arende.builder()
+                .id(id).organisationId("organisation-A")
+                .title("Test arende").status(ArendeStatus.CLOSED).createdBy("test-user").build();
     }
 }

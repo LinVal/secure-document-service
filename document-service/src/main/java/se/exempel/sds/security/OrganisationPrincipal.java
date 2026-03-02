@@ -15,7 +15,6 @@ public record OrganisationPrincipal(
         String organisationId,
         Collection<GrantedAuthority> authorities) {
 
-    /** Compact constructor – defensive copy so callers cannot mutate the list. */
     public OrganisationPrincipal {
         authorities = List.copyOf(authorities);
     }

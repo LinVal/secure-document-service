@@ -2,16 +2,14 @@ package se.exempel.sds;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
 
 @SpringBootApplication
 @EnableJpaAuditing
-@ConfigurationPropertiesScan
-public class DokumentServiceApplication {
+public class SecureDokumentServiceApplication {
 
 	public static void main(String[] args) {
-		SpringApplication.run(DokumentServiceApplication.class, args);
+		SpringApplication.run(SecureDokumentServiceApplication.class, args);
 	}
 
 }

@@ -12,11 +12,6 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.UUID;
 
-/**
- * Thin controller – no business or security logic here.
- * All decisions are delegated to {@link ArendeService} and
- * {@link se.exempel.sds.service.AuthorizationService}.
- */
 @RestController
 @RequestMapping("/api/arenden")
 public class ArendeController {
@@ -48,7 +43,6 @@ public class ArendeController {
         return arendeService.createArende(request, principal);
     }
 
-    /** Only ADMIN within the organisation may call this – enforced in ArendeService. */
     @PutMapping("/{id}/close")
     public ArendeResponse closeArende(
             @PathVariable UUID id,

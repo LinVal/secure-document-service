@@ -8,29 +8,24 @@ Fokusera på resonemang, riskmedvetenhet och hur kandidaten prioriterar i en ver
 
 ## A. Multipla organisationer
 
-Börja med öppna frågor om organisations-isolering och JWT-hantering:
+Börja med implementationen av `JwtOrganisationConverter`, sedan öppna frågor om design:
 
-- Hur designade du organisations-isoleringen?
-- Varför valde du just den strategin?
+- Hur extraherade du `organisation_id` och `roles` från JWT?
+- Vad händer om `organisation_id` saknas i token?
+- Varför prefixar Spring Security roller med `ROLE_`?
 - Hur säkerställer du att ingen cross-organisation access är möjlig?
 - Vad händer om någon av misstag glömmer organisations-filter i en query?
-- Hur hämtar du `organisation_id` från token?
-- Hur validerar du JWT?
-- Hur verifierar du audience?
+- Hur validerar du JWT – vem ansvarar för det?
 - Hur skiljer du scope från roller?
 
 ### Senior-svar bör inkludera:
 
-- Centralisering av ansvar
+- Centralisering av ansvar – converter som enda ingångspunkt för org-identitet
 - Risk för horizontal privilege escalation
 - Tydlig teststrategi för säkerhetskrav
-- Möjlig användning av filter, interceptor eller policy-lager
 - Skillnaden mellan Resource Server och Authorization Server
 - Claims och trust boundaries
-- Var policy enforcement bör ske
-- Hur man förhindrar att säkerhet blir beroende av enskilda utvecklare
-
-En senior bör förstå att tokenen är en verifierad input – inte en absolut sanning utan kontext.
+- Att tokenen är verifierad input, inte absolut sanning utan kontext
 
 ---
 

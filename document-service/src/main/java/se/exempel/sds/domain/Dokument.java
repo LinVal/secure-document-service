@@ -12,7 +12,7 @@ import java.time.Instant;
 import java.util.UUID;
 
 @Entity
-@Table(name = "dokuments")
+@Table(name = "dokument")
 @EntityListeners(AuditingEntityListener.class)
 @Getter
 @Setter
@@ -36,32 +36,14 @@ public class Dokument {
 
     private String description;
 
-    /** Original filename as uploaded – stored separately from the physical path. */
-    private String filename;
-
-    private String contentType;
-
-    private Long fileSize;
-
-    /**
-     * Internal storage path relative to the configured upload directory.
-     * Never included in API responses – clients never learn where files live on disk.
-     */
-    @Column(name = "storage_path")
-    private String storagePath;
-
     @NotNull
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private Classification classification;
 
-    /**
-     * Optional link to a arende. Dokument and arende must share the same organisationId –
-     * enforced in the service layer.
-     */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "arende_id")
-    private DokumentArende linkedArende;
+    private Arende linkedArende;
 
     @NotBlank
     @Column(nullable = false, updatable = false)

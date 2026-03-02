@@ -1,7 +1,7 @@
 package se.exempel.sds.service;
 
 import se.exempel.sds.domain.ArendeStatus;
-import se.exempel.sds.domain.DokumentArende;
+import se.exempel.sds.domain.Arende;
 import se.exempel.sds.dto.ArendeResponse;
 import se.exempel.sds.dto.CreateArendeRequest;
 import se.exempel.sds.repository.ArendeRepository;
@@ -31,7 +31,7 @@ public class ArendeService {
 
     @Transactional(readOnly = true)
     public ArendeResponse getArende(UUID id, OrganisationPrincipal principal) {
-        DokumentArende dokumentArende = requireArende(id, principal.organisationId());
+        Arende dokumentArende = requireArende(id, principal.organisationId());
         authorizationService.assertReadAccess(dokumentArende, principal);
         auditService.log(AuditAction.ARENDE_READ, principal, id);
         return ArendeResponse.from(dokumentArende);
@@ -45,7 +45,7 @@ public class ArendeService {
     }
 
     public ArendeResponse createArende(CreateArendeRequest request, OrganisationPrincipal principal) {
-        DokumentArende dokumentArende = DokumentArende.builder()
+        Arende dokumentArende = Arende.builder()
                 .organisationId(principal.organisationId())
                 .title(request.title())
                 .description(request.description())
@@ -59,7 +59,7 @@ public class ArendeService {
     }
 
     public ArendeResponse closeArende(UUID id, OrganisationPrincipal principal) {
-        DokumentArende dokumentArende = requireArende(id, principal.organisationId());
+        Arende dokumentArende = requireArende(id, principal.organisationId());
         authorizationService.assertCloseAccess(dokumentArende, principal);
 
         if (dokumentArende.getStatus() == ArendeStatus.CLOSED) {
@@ -74,7 +74,7 @@ public class ArendeService {
 
     // ── Helper ───────────────────────────────────────────────────────────────
 
-    private DokumentArende requireArende(UUID id, String organisationId) {
+    private Arende requireArende(UUID id, String organisationId) {
         return arendeRepository.findByIdAndOrganisationId(id, organisationId)
                 .orElseThrow(() -> new NoSuchElementException(
                         "Arende not found: " + id));

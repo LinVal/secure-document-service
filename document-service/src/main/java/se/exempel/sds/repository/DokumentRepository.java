@@ -8,11 +8,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-/**
- * All query methods include organisationId to enforce organisation isolation at the
- * database level. Plain {@code findById(id)} is intentionally absent –
- * every lookup must be scoped to the caller's organisation.
- */
 @Repository
 public interface DokumentRepository extends JpaRepository<Dokument, UUID> {
 

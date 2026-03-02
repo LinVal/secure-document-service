@@ -1,7 +1,7 @@
 package se.exempel.sds.service;
 
 import se.exempel.sds.domain.ArendeStatus;
-import se.exempel.sds.domain.DokumentArende;
+import se.exempel.sds.domain.Arende;
 import se.exempel.sds.dto.ArendeResponse;
 import se.exempel.sds.dto.CreateArendeRequest;
 import se.exempel.sds.repository.ArendeRepository;
@@ -20,7 +20,6 @@ import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -66,7 +65,7 @@ class ArendeServiceTest {
     @Test
     void getArende_shouldReturnArende_whenFound() {
         UUID id = UUID.randomUUID();
-        DokumentArende existingArende = openArende(id);
+        Arende existingArende = openArende(id);
         when(arendeRepository.findByIdAndOrganisationId(id, "organisation-A"))
                 .thenReturn(Optional.of(existingArende));
 
@@ -119,7 +118,7 @@ class ArendeServiceTest {
     @Test
     void closeArende_shouldDenyAccess_forUserRole() {
         UUID id = UUID.randomUUID();
-        DokumentArende openArende = openArende(id);
+        Arende openArende = openArende(id);
         when(arendeRepository.findByIdAndOrganisationId(id, "organisation-A"))
                 .thenReturn(Optional.of(openArende));
 
@@ -133,7 +132,7 @@ class ArendeServiceTest {
     @Test
     void closeArende_shouldDenyAccess_whenNoRoles() {
         UUID id = UUID.randomUUID();
-        DokumentArende openArende = openArende(id);
+        Arende openArende = openArende(id);
         when(arendeRepository.findByIdAndOrganisationId(id, "organisation-A"))
                 .thenReturn(Optional.of(openArende));
 
@@ -146,7 +145,7 @@ class ArendeServiceTest {
     @Test
     void closeArende_shouldSucceed_forAdminRole() {
         UUID id = UUID.randomUUID();
-        DokumentArende openArende = openArende(id);
+        Arende openArende = openArende(id);
         when(arendeRepository.findByIdAndOrganisationId(id, "organisation-A"))
                 .thenReturn(Optional.of(openArende));
         when(arendeRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -161,7 +160,7 @@ class ArendeServiceTest {
     @Test
     void closeArende_shouldThrow_whenArendeAlreadyClosed() {
         UUID id = UUID.randomUUID();
-        DokumentArende closedArende = DokumentArende.builder()
+        Arende closedArende = Arende.builder()
                 .id(id)
                 .organisationId("organisation-A")
                 .title("Arende")
@@ -214,8 +213,8 @@ class ArendeServiceTest {
         return new OrganisationPrincipal(userId, organisationId, authorities);
     }
 
-    private static DokumentArende openArende(UUID id) {
-        return DokumentArende.builder()
+    private static Arende openArende(UUID id) {
+        return Arende.builder()
                 .id(id)
                 .organisationId("organisation-A")
                 .title("Test arende")

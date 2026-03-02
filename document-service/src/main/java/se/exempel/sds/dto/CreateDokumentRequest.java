@@ -13,12 +13,6 @@ public record CreateDokumentRequest(
 
         String description,
 
-        String filename,
-
-        String contentType,
-
-        Long fileSize,
-
         @NotNull
         Classification classification,
 

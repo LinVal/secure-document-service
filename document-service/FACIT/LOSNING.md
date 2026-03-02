@@ -33,19 +33,29 @@ Denna struktur säkerställer tydlig separation av ansvar.
 
 # A. Multipla organisationer
 
-## A.1 Lösning
+## A.1 Lösning: JwtOrganisationConverter.convert()
 
-Organisation hämtas från JWT (`organisation_id`).
-Den lagras i en principal-klass och används i hela applikationen.
+`organisation_id` hämtas från JWT-claim och lagras i `OrganisationPrincipal`.
+Principalen används sedan i hela applikationen för att filtrera data per organisation.
 
-Åtkomst kontrolleras genom:
+Stegen i `convert()`:
+1. Läs `organisation_id` via `jwt.getClaim("organisation_id")` – kasta `BadCredentialsException` om null/blank.
+2. Läs `roles` via `jwt.getClaimAsStringList("roles")` – hantera null defensivt.
+3. Mappa varje roll till `new SimpleGrantedAuthority("ROLE_" + roll)`.
+4. Skapa `new OrganisationPrincipal(jwt.getSubject(), organisationId, authorities)`.
+5. Anropa `OrganisationContext.set(principal)` (ThreadLocal för services).
+6. Returnera `new UsernamePasswordAuthenticationToken(principal, jwt, authorities)`.
 
-- Repository-metoder som filtrerar på organisation
-  - exempel: `findByIdAndOrganisationId`
-- Alternativt globalt filter (t.ex. Hibernate-filter)
-- Alternativt explicit kontroll i service-lagret
+## A.2 Dev-infrastruktur: JWT utan Keycloak
 
-## A.2 Viktiga säkerhetsprinciper
+`DevJwtConfig` registrerar en `JwtDecoder`-bean (HMAC-SHA256) aktiv enbart i dev-profilen.
+`SecurityConfig.filterChain` tar `JwtDecoder` som explicit parameter och sätter `.decoder(jwtDecoder)` –
+detta gör beroendet synligt för Spring och fungerar oavsett om decodern kommer från dev eller prod.
+
+`DevTokenController` (`POST /dev/token`) signerar tokens med samma nyckel och exponeras via `/dev/**`
+som är permit-all i `SecurityConfig`. Endpointen existerar inte i prod (klassen är `@Profile("dev")`).
+
+## A.3 Viktiga säkerhetsprinciper
 
 - Organisation får aldrig komma från klientens request-body.
 - All verifiering sker server-side.

@@ -22,10 +22,6 @@ import java.util.NoSuchElementException;
  *
  * <p>Error messages are intentionally vague to avoid leaking internal details
  * to clients. The full message is available in server-side logs only.
- *
- * <p>All {@link AccessDeniedException} events are audit-logged here using the
- * principal from the SecurityContext, which covers both our own authorization
- * checks and Spring Security's method-level security.
  */
 @RestControllerAdvice
 public class GlobalExceptionHandler {

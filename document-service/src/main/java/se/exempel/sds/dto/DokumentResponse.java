@@ -11,9 +11,6 @@ public record DokumentResponse(
         String organisationId,
         String title,
         String description,
-        String filename,
-        String contentType,
-        Long fileSize,
         Classification classification,
         UUID arendeId,
         String createdBy,
@@ -22,8 +19,6 @@ public record DokumentResponse(
         Instant updatedAt
 ) {
     public static DokumentResponse from(Dokument doc) {
-        // Accessing getId() on a LAZY Hibernate proxy is safe – Hibernate
-        // stores the FK value in the proxy without issuing a SELECT.
         UUID arendeId = doc.getLinkedArende() != null
                 ? doc.getLinkedArende().getId()
                 : null;
@@ -33,9 +28,6 @@ public record DokumentResponse(
                 doc.getOrganisationId(),
                 doc.getTitle(),
                 doc.getDescription(),
-                doc.getFilename(),
-                doc.getContentType(),
-                doc.getFileSize(),
                 doc.getClassification(),
                 arendeId,
                 doc.getCreatedBy(),

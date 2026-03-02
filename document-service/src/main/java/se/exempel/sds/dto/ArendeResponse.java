@@ -1,7 +1,7 @@
 package se.exempel.sds.dto;
 
 import se.exempel.sds.domain.ArendeStatus;
-import se.exempel.sds.domain.DokumentArende;
+import se.exempel.sds.domain.Arende;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -15,7 +15,7 @@ public record ArendeResponse(
         String createdBy,
         Instant createdAt
 ) {
-    public static ArendeResponse from(DokumentArende c) {
+    public static ArendeResponse from(Arende c) {
         return new ArendeResponse(
                 c.getId(),
                 c.getOrganisationId(),

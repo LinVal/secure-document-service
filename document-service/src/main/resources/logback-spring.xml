@@ -9,12 +9,6 @@
     </appender>
 
     <!-- ── Appender: dedicated audit file ─────────────────────────────────── -->
-    <!--
-        Audit events are written to a separate rolling file so they can be:
-        - Collected by a SIEM without noise from application logs
-        - Retained independently (longer retention policy)
-        - Shipped to an immutable log store (e.g. S3, Splunk)
-    -->
     <appender name="AUDIT_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
         <file>${LOG_DIR:-logs}/audit.log</file>
         <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
@@ -29,11 +23,6 @@
     </appender>
 
     <!-- ── AUDIT logger ────────────────────────────────────────────────────── -->
-    <!--
-        additivity=false: audit events go ONLY to AUDIT_FILE, not to the
-        root appender. This prevents tokens/PII from leaking into the
-        general application log if someone accidentally logs them here.
-    -->
     <logger name="AUDIT" level="INFO" additivity="false">
         <appender-ref ref="AUDIT_FILE"/>
     </logger>

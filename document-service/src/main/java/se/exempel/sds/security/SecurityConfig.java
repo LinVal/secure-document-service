@@ -10,6 +10,7 @@ import org.springframework.security.config.annotation.method.configuration.Enabl
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -24,17 +25,19 @@ import java.io.IOException;
 public class SecurityConfig {
 
     @Bean
-    SecurityFilterChain filterChain(HttpSecurity http) {
+    SecurityFilterChain filterChain(HttpSecurity http, JwtDecoder jwtDecoder) {
         http
             .sessionManagement(s ->
                 s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .csrf(AbstractHttpConfigurer::disable)
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/actuator/health").permitAll()
+                .requestMatchers("/actuator/health", "/dev/**").permitAll()
                 .anyRequest().authenticated()
             )
             .oauth2ResourceServer(oauth -> oauth
-                .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtOrganisationConverter()))
+                .jwt(jwt -> jwt
+                    .decoder(jwtDecoder)
+                    .jwtAuthenticationConverter(jwtOrganisationConverter()))
             )
             // Must sit BEFORE BearerTokenAuthenticationFilter so the try/finally
             // wraps the entire security chain, including authentication itself.
@@ -49,7 +52,6 @@ public class SecurityConfig {
     }
 
     /**
-     * Clears {@link OrganisationContext} after every request regardless of outcome.
      * Registered as a named bean so it can be referenced in tests.
      */
     @Bean

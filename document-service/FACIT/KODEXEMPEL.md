@@ -13,7 +13,45 @@ Grundprinciper:
 
 # A. Multipla organisationer
 
-## A.1 Säkerhetskonfiguration
+## A.1 Dev JWT-infrastruktur
+
+`DevJwtConfig` skapar en `JwtDecoder` med HMAC-SHA256 (aktiv enbart i dev-profilen).
+`SecurityConfig` tar `JwtDecoder` som explicit metodparameter och sätter `.decoder(jwtDecoder)`:
+
+```java
+@Bean
+SecurityFilterChain filterChain(HttpSecurity http, JwtDecoder jwtDecoder) {
+    http
+        ...
+        .oauth2ResourceServer(oauth -> oauth
+            .jwt(jwt -> jwt
+                .decoder(jwtDecoder)
+                .jwtAuthenticationConverter(jwtOrganisationConverter()))
+        );
+    return http.build();
+}
+```
+
+`DevTokenController` (enbart dev) genererar tokens för lokal testning:
+
+```bash
+curl -s -X POST http://localhost:8080/dev/token \
+  -H "Content-Type: application/json" \
+  -d '{"userId":"u1","organisationId":"org-a","roles":["USER"]}' \
+  | jq -r .token
+```
+
+`JwtOrganisationConverterTest` är `@Disabled` och ska aktiveras av kandidaten:
+
+```java
+// Ta bort @Disabled när convert() är implementerad – alla 9 tester ska vara gröna.
+@Disabled("Uppgift A ej implementerad")
+class JwtOrganisationConverterTest { ... }
+```
+
+---
+
+## A.2 Säkerhetskonfiguration
 
 ```java
 @Configuration
@@ -46,42 +84,34 @@ public class SecurityConfig {
 }
 ```
 
-## A.2 JWT → organisationsID
+## A.2 JWT → OrganisationPrincipal (Uppgift A)
 
 ```java
-public class JwtOrganisationConverter
-        implements Converter<Jwt, AbstractAuthenticationToken> {
+@Override
+public AbstractAuthenticationToken convert(Jwt jwt) {
 
-    @Override
-    public AbstractAuthenticationToken convert(Jwt jwt) {
-
-        String organisationId =
-                jwt.getClaimAsString("organisation_id");
-
-        List<GrantedAuthority> authorities =
-                jwt.getClaimAsStringList("roles")
-                        .stream()
-                        .map(role -> new SimpleGrantedAuthority("ROLE_" + role))
-                        .toList();
-
-        OrganisationPrincipal principal =
-                new OrganisationPrincipal(jwt.getSubject(), organisationId);
-
-        return new UsernamePasswordAuthenticationToken(
-                principal,
-                jwt,
-                authorities
-        );
+    String organisationId = jwt.getClaim("organisation_id");
+    if (organisationId == null || organisationId.isBlank()) {
+        throw new BadCredentialsException(
+                "JWT is missing the required 'organisation_id' claim");
     }
-}
-```
 
-Principal-modell:
-```java
-public record OrganisationPrincipal(
-        String userId,
-        String organisationId
-) {}
+    List<GrantedAuthority> authorities = Optional
+            .ofNullable(jwt.getClaimAsStringList("roles"))
+            .orElse(List.of())
+            .stream()
+            .map(role -> (GrantedAuthority) new SimpleGrantedAuthority("ROLE_" + role))
+            .toList();
+
+    OrganisationPrincipal principal =
+            new OrganisationPrincipal(jwt.getSubject(), organisationId, authorities);
+
+    // Populate ThreadLocal so services can read principal without method injection.
+    // Cleared by SecurityConfig#organisationContextClearFilter after each response.
+    OrganisationContext.set(principal);
+
+    return new UsernamePasswordAuthenticationToken(principal, jwt, authorities);
+}
 ```
 
 ## A.3 Repository med organisations-filter

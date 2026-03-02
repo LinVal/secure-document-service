@@ -3,15 +3,13 @@ package se.exempel.sds.repository;
 import se.exempel.sds.domain.ArendeStatus;
 import se.exempel.sds.domain.Classification;
 import se.exempel.sds.domain.Dokument;
-import se.exempel.sds.domain.DokumentArende;
+import se.exempel.sds.domain.Arende;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
@@ -19,24 +17,10 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * Proves organisation isolation at the database level.
- * <p>
- * {@code findById} is intentionally absent from our repositories – this test
- * verifies that the organisation-scoped queries are the ONLY way to find data.
- * <p>
- * Uses @SpringBootTest(webEnvironment=NONE) with H2 (dev profile) because
- * Spring Boot 4 removed the @DataJpaTest slice. @Transactional rolls back
- * each test, providing the same isolation that @DataJpaTest gave.
- */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @ActiveProfiles("dev")
 @Transactional
-class OrganisationIsolationRepositoryTest {
-
-    // Prevents Spring from trying to contact the OIDC issuer URI on startup
-    @MockitoBean
-    JwtDecoder jwtDecoder;
+class OrganisationRepositoryTest {
 
     @PersistenceContext
     private EntityManager em;
@@ -47,7 +31,7 @@ class OrganisationIsolationRepositoryTest {
     @Autowired
     private ArendeRepository arendeRepository;
 
-    // ── Dokument isolation ────────────────────────────────────────────────────
+    // Dokument åtskilda mellan organisationer
 
     @Test
     void findByIdAndOrganisationId_shouldReturnDokument_forCorrectOrganisation() {
@@ -90,60 +74,59 @@ class OrganisationIsolationRepositoryTest {
         assertThat(result).isEmpty();
     }
 
-    // ── Arende isolation ────────────────────────────────────────────────────────
+    // Arende per organisation
 
     @Test
     void findArendeByIdAndOrganisationId_shouldReturnEmpty_forWrongOrganisation() {
-        DokumentArende dc = saved(dokumentArende("organisation-A"));
+        Arende arende = saved(arende("organisation-A"));
 
-        Optional<DokumentArende> result =
-                arendeRepository.findByIdAndOrganisationId(dc.getId(), "organisation-B");
+        Optional<Arende> result =
+                arendeRepository.findByIdAndOrganisationId(arende.getId(), "organisation-B");
 
         assertThat(result).isEmpty();
     }
 
     @Test
     void findAllArendenByOrganisationId_shouldOnlyReturnOwnOrganisationArenden() {
-        saved(dokumentArende("organisation-A"));
-        saved(dokumentArende("organisation-A"));
-        saved(dokumentArende("organisation-B"));
+        saved(arende("organisation-A"));
+        saved(arende("organisation-A"));
+        saved(arende("organisation-B"));
 
-        List<DokumentArende> result = arendeRepository.findAllByOrganisationId("organisation-A");
+        List<Arende> result = arendeRepository.findAllByOrganisationId("organisation-A");
 
         assertThat(result).hasSize(2)
                 .allMatch(c -> c.getOrganisationId().equals("organisation-A"));
     }
 
-    // ── Dokument-Arende cross-reference ─────────────────────────────────────────
+    // Dokument+Arende koppling
 
     @Test
     void findAllByLinkedArende_shouldReturnEmpty_forWrongOrganisation() {
-        DokumentArende dc = saved(dokumentArende("organisation-A"));
+        Arende arende = saved(arende("organisation-A"));
         Dokument doc = dokument("organisation-A", Classification.PUBLIC);
-        doc.setLinkedArende(dc);
+        doc.setLinkedArende(arende);
         saved(doc);
 
-        // Query with correct arende ID but wrong organisation
         List<Dokument> result =
-                dokumentRepository.findAllByLinkedArende_IdAndOrganisationId(dc.getId(), "organisation-B");
+                dokumentRepository.findAllByLinkedArende_IdAndOrganisationId(arende.getId(), "organisation-B");
 
         assertThat(result).isEmpty();
     }
 
     @Test
     void findAllByLinkedArende_shouldReturnDokuments_forCorrectOrganisation() {
-        DokumentArende dc = saved(dokumentArende("organisation-A"));
+        Arende arende = saved(arende("organisation-A"));
         Dokument doc = dokument("organisation-A", Classification.PUBLIC);
-        doc.setLinkedArende(dc);
+        doc.setLinkedArende(arende);
         saved(doc);
 
         List<Dokument> result =
-                dokumentRepository.findAllByLinkedArende_IdAndOrganisationId(dc.getId(), "organisation-A");
+                dokumentRepository.findAllByLinkedArende_IdAndOrganisationId(arende.getId(), "organisation-A");
 
         assertThat(result).hasSize(1);
     }
 
-    // ── Helpers ───────────────────────────────────────────────────────────────
+    // Helpers
 
     private <T> T saved(T entity) {
         em.persist(entity);
@@ -160,8 +143,8 @@ class OrganisationIsolationRepositoryTest {
                 .build();
     }
 
-    private static DokumentArende dokumentArende(String organisationId) {
-        return DokumentArende.builder()
+    private static Arende arende(String organisationId) {
+        return Arende.builder()
                 .organisationId(organisationId)
                 .title("Test arende")
                 .status(ArendeStatus.OPEN)

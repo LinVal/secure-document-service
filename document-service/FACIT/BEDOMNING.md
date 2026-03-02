@@ -8,12 +8,13 @@ Detta dokument används som stöd vid intervju och bedömning av kandidater.
 
 ## A. Multipla organisationer
 
-- Organisation hämtas från request istället för från JWT.
+- Kastar inte `BadCredentialsException` när `organisation_id` saknas – accepterar tomma tokens.
+- Glömmer `ROLE_`-prefix på auktoriteter, vilket bryter Spring Securitys `hasRole()`-kontroller.
+- Hanterar inte `null` från `getClaimAsStringList("roles")`.
+- Förstår inte varför `OrganisationContext.set()` behövs (ThreadLocal för services).
+- Organisation hämtas från request-body istället för från JWT.
 - Ingen förståelse för trust boundaries.
 - Ingen tanke på horizontal privilege escalation.
-- Ingen validering av `issuer` och `audience`.
-- Ingen skillnad mellan scope och roller.
-- Endast frontend-validering.
 
 ---
 
@@ -43,6 +44,7 @@ Detta dokument används som stöd vid intervju och bedömning av kandidater.
 - Ingen test av säkerhetsregler.
 - Inga integrationstester.
 - Ingen test av cross-organisation-scenarier.
+- Glömmer att ta bort `@Disabled` från `JwtOrganisationConverterTest` – uppgift A verifieras aldrig.
 
 ---
 

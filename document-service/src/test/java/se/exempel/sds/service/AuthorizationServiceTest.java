@@ -3,7 +3,7 @@ package se.exempel.sds.service;
 import se.exempel.sds.domain.ArendeStatus;
 import se.exempel.sds.domain.Classification;
 import se.exempel.sds.domain.Dokument;
-import se.exempel.sds.domain.DokumentArende;
+import se.exempel.sds.domain.Arende;
 import se.exempel.sds.security.OrganisationPrincipal;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.access.AccessDeniedException;
@@ -48,7 +48,7 @@ class AuthorizationServiceTest {
 
     @Test
     void readArende_shouldDenyAccess_whenOrganisationMismatch() {
-        DokumentArende dokumentArende = dokumentArende("organisation-A");
+        Arende dokumentArende = dokumentArende("organisation-A");
         OrganisationPrincipal principal = principal("user1", "organisation-B", "USER");
 
         assertThatThrownBy(() -> authorizationService.assertReadAccess(dokumentArende, principal))
@@ -58,7 +58,7 @@ class AuthorizationServiceTest {
 
     @Test
     void readArende_shouldAllowAccess_whenSameOrganisation() {
-        DokumentArende dokumentArende = dokumentArende("organisation-A");
+        Arende dokumentArende = dokumentArende("organisation-A");
         OrganisationPrincipal principal = principal("user1", "organisation-A", "USER");
 
         assertThatNoException()
@@ -68,7 +68,7 @@ class AuthorizationServiceTest {
     @Test
     void crossOrganisationLink_shouldBeDenied() {
         Dokument doc = dokument(Classification.PUBLIC);
-        DokumentArende dokumentArende = dokumentArende("organisation-B");
+        Arende dokumentArende = dokumentArende("organisation-B");
 
         assertThatThrownBy(() -> authorizationService.assertSameOrganisationForLink(doc, dokumentArende))
                 .isInstanceOf(AccessDeniedException.class);
@@ -77,7 +77,7 @@ class AuthorizationServiceTest {
     @Test
     void sameOrganisationLink_shouldBeAllowed() {
         Dokument doc = dokument(Classification.PUBLIC);
-        DokumentArende dokumentArende = dokumentArende("organisation-A");
+        Arende dokumentArende = dokumentArende("organisation-A");
 
         assertThatNoException()
                 .isThrownBy(() -> authorizationService.assertSameOrganisationForLink(doc, dokumentArende));
@@ -191,7 +191,7 @@ class AuthorizationServiceTest {
 
     @Test
     void writeDokument_shouldDenyAccess_whenLinkedArendeIsClosed() {
-        DokumentArende closedArende = dokumentArende("organisation-A");
+        Arende closedArende = dokumentArende("organisation-A");
         closedArende.setStatus(ArendeStatus.CLOSED);
 
         Dokument doc = dokument(Classification.PUBLIC);
@@ -206,7 +206,7 @@ class AuthorizationServiceTest {
 
     @Test
     void writeDokument_shouldAllowAccess_whenLinkedArendeIsOpen() {
-        DokumentArende openArende = dokumentArende("organisation-A");
+        Arende openArende = dokumentArende("organisation-A");
         openArende.setStatus(ArendeStatus.OPEN);
 
         Dokument doc = dokument(Classification.PUBLIC);
@@ -233,7 +233,7 @@ class AuthorizationServiceTest {
 
     @Test
     void closeArende_shouldDenyAccess_forUserRole() {
-        DokumentArende dokumentArende = dokumentArende("organisation-A");
+        Arende dokumentArende = dokumentArende("organisation-A");
         OrganisationPrincipal principal = principal("user1", "organisation-A", "USER");
 
         assertThatThrownBy(() -> authorizationService.assertCloseAccess(dokumentArende, principal))
@@ -243,7 +243,7 @@ class AuthorizationServiceTest {
 
     @Test
     void closeArende_shouldDenyAccess_whenNoRoles() {
-        DokumentArende dokumentArende = dokumentArende("organisation-A");
+        Arende dokumentArende = dokumentArende("organisation-A");
         OrganisationPrincipal principal = principal("user1", "organisation-A" /* no roles */);
 
         assertThatThrownBy(() -> authorizationService.assertCloseAccess(dokumentArende, principal))
@@ -253,7 +253,7 @@ class AuthorizationServiceTest {
     @Test
     void closeArende_shouldDenyAccess_forSuperAdminWithoutAdminRole() {
         // SUPER_ADMIN alone does NOT grant arende-close rights – explicit ADMIN required
-        DokumentArende dokumentArende = dokumentArende("organisation-A");
+        Arende dokumentArende = dokumentArende("organisation-A");
         OrganisationPrincipal principal = principal("sa1", "organisation-A", "SUPER_ADMIN");
 
         assertThatThrownBy(() -> authorizationService.assertCloseAccess(dokumentArende, principal))
@@ -263,7 +263,7 @@ class AuthorizationServiceTest {
 
     @Test
     void closeArende_shouldAllowAccess_forAdminRole() {
-        DokumentArende dokumentArende = dokumentArende("organisation-A");
+        Arende dokumentArende = dokumentArende("organisation-A");
         OrganisationPrincipal principal = principal("admin1", "organisation-A", "ADMIN");
 
         assertThatNoException()
@@ -272,7 +272,7 @@ class AuthorizationServiceTest {
 
     @Test
     void closeArende_shouldDenyAccess_forAdminInDifferentOrganisation() {
-        DokumentArende dokumentArende = dokumentArende("organisation-A");
+        Arende dokumentArende = dokumentArende("organisation-A");
         OrganisationPrincipal principal = principal("admin1", "organisation-B", "ADMIN");
 
         assertThatThrownBy(() -> authorizationService.assertCloseAccess(dokumentArende, principal))
@@ -299,8 +299,8 @@ class AuthorizationServiceTest {
                 .build();
     }
 
-    private static DokumentArende dokumentArende(String organisationId) {
-        return DokumentArende.builder()
+    private static Arende dokumentArende(String organisationId) {
+        return Arende.builder()
                 .organisationId(organisationId)
                 .title("Test arende")
                 .status(ArendeStatus.OPEN)

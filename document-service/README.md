@@ -1,160 +1,107 @@
 # Secure Dokument Service (SDS)
 
-En Spring Boot-baserad REST-tjänst för säker dokumenthantering med organisationsisolering,
-rollbaserad åtkomstkontroll och klassificering av dokument.
+Spring Boot-baserad REST-tjänst för säker dokumenthantering med rollbaserad åtkomstkontroll.
 
----
-
-## Förutsättningar
+## Kom igång
 
 | Verktyg | Version |
 |---------|---------|
-| Java | 25 |
+| Java | 21 |
 | Maven | 3.9+ |
-| (Prod) MySQL | 8+ |
-| (Prod) Keycloak | 26+ |
-
----
-
-## Starta applikationen
-
-Projektet har två profiler: `dev` (H2 in-memory) och `prod` (MySQL).
-
-### Dev-profil
-
-Kör med H2 in-memory-databas. Ingen extern databas eller Keycloak krävs för att starta,
-men JWT-validering är aktiv och kräver en giltig token mot den konfigurerade issuer-uri.
 
 ```bash
-# Med Maven
+# Starta med dev-profil (H2 in-memory)
 mvn spring-boot:run -Dspring-boot.run.profiles=dev
 
-# Eller via JAR
-java -jar target/document-service.jar --spring.profiles.active=dev
+# Kör tester
+mvn test
 ```
 
-**IntelliJ IDEA:** Lägg till `-Dspring.profiles.active=dev` under *Run/Debug Configurations → VM options*.
+**IntelliJ IDEA:** `-Dspring.profiles.active=dev` under *Run/Debug Configurations → VM options*.
 
-> **OBS:** Dev-profilen använder `ddl-auto: none`. Databasschemat definieras i
-> `src/main/resources/schema.sql` som läses automatiskt av H2 vid uppstart.
+H2-konsol: `http://localhost:8080/h2-console` · JDBC URL: `jdbc:h2:mem:sdsdev` · Användare: `sa` · Lösenord: *(tomt)*
 
-### Prod-profil
+## Testa API:et
 
-Kräver en körande MySQL-instans och Keycloak. Konfigurera via miljövariabler:
+`POST /dev/token` genererar en JWT lokalt:
 
 ```bash
-export DB_URL=jdbc:mysql://localhost:3306/sds
-export DB_USERNAME=sdsuser
-export DB_PASSWORD=hemligt
-export OIDC_ISSUER_URI=https://auth.example.com/realms/sds
-export STORAGE_DIR=/var/data/sds-uploads
+TOKEN=$(curl -s -X POST http://localhost:8080/dev/token \
+  -H "Content-Type: application/json" \
+  -d '{"userId":"user-1","organisationId":"org-a","roles":["USER","ADMIN"]}' \
+  | jq -r .token)
 
-java -jar target/document-service.jar --spring.profiles.active=prod
+curl http://localhost:8080/api/dokuments \
+  -H "Authorization: Bearer $TOKEN"
 ```
 
----
-
-## H2-konsolen (dev)
-
-När applikationen körs med dev-profilen finns H2:s webbkonsol tillgänglig:
-
-- URL: `http://localhost:8080/h2-console`
-- JDBC URL: `jdbc:h2:mem:sdsdev`
-- Användarnamn: `sa`
-- Lösenord: *(tomt)*
-
-Konsolen är användbar för att verifiera att `schema.sql` applicerades korrekt och
-för att inspektera data under utveckling.
+> **OBS:** `POST /dev/token` fungerar direkt. Själva API:et för tjänsten svarar `401` tills uppgift A är klar.
 
 ---
 
-## Autentisering & JWT
+# Uppgifter
 
-Alla endpoints (utom `/actuator/health`) kräver en giltig JWT utfärdad av konfigurerad OIDC-leverantör.
+Nedan finns tre uppgifter, A–C. Rekommenderas att börja med A.
 
-JWT-token förväntas innehålla följande claims:
+### A. Multipla organisationer
 
-| Claim | Beskrivning |
-|-------|-------------|
-| `sub` | Användarens ID |
-| `organisation_id` | Organisationen användaren tillhör |
-| `roles` | Lista med roller, t.ex. `["USER", "ADMIN", "SUPER_ADMIN"]` |
+Systemet hanterar flera organisationer och all data är strikt isolerad per organisation.
+Grunden för isoleringen är att varje inloggad användare bär sin `organisation_id` i JWT-token.
 
-Tokenen skickas som `Authorization: Bearer <token>` i varje request.
+Klassen `JwtOrganisationConverter` ansvarar för att översätta en validerad JWT-token till
+ett Spring Security-autentiseringsobjekt med en `OrganisationPrincipal` som principal.
+Metoden `convert()` är inte implementerad – det är din uppgift.
 
-### Dev-setup med Keycloak
+JWT-token innehåller följande claims:
 
-Dev-profilen pekar mot `http://localhost:8180/realms/sds`.
-Starta Keycloak lokalt och konfigurera ett realm `sds` med lämpliga clients och användare.
+| Claim | Typ | Beskrivning |
+|-------|-----|-------------|
+| `sub` | String | Användarens ID |
+| `organisation_id` | String | Organisationens ID (obligatorisk) |
+| `roles` | List\<String\> | Roller, t.ex. `["USER", "ADMIN"]` |
 
-För att temporärt testa utan Keycloak kan `issuer-uri` i `application.yaml` bytas ut mot
-en annan OIDC-kompatibel leverantör (t.ex. Auth0 eller Azure AD).
+Önskat resultat:
+
+- Saknas `organisation_id` ska autentiseringen misslyckas med `BadCredentialsException`.
+- Roller ska mappas till Spring Security-auktoriteter med prefixet `ROLE_` (t.ex. `"ADMIN"` → `"ROLE_ADMIN"`).
+- `organisation_id` får aldrig komma från request-body – enbart från token.
 
 ---
 
-## API-översikt
+### B. Utöka befintligt API
 
-### Dokument
+Den befintliga `DokumentController` exponerar idag en lista med dokument men saknar möjligheten
+att hämta ett enskilt dokument via ID.
 
-| Metod | URL | Beskrivning | Roll |
-|-------|-----|-------------|------|
-| `GET` | `/api/dokuments` | Lista alla dokument | USER |
-| `GET` | `/api/dokuments/{id}` | Hämta ett specifikt dokument | USER |
-| `GET` | `/api/dokuments/by-arende/{arendeId}` | Hämta dokument kopplade till ett arende | USER |
-| `POST` | `/api/dokuments` | Skapa dokument | USER |
-| `PUT` | `/api/dokuments/{id}` | Uppdatera dokument | USER |
-| `DELETE` | `/api/dokuments/{id}` | Ta bort dokument | USER |
-| `POST` | `/api/dokuments/{id}/upload` | Ladda upp fil till dokument | USER |
-
-### Arenden
-
-| Metod | URL | Beskrivning | Roll |
-|-------|-----|-------------|------|
-| `GET` | `/api/arenden` | Lista alla arenden | USER |
-| `GET` | `/api/arenden/{id}` | Hämta ett specifikt arende | USER |
-| `POST` | `/api/arenden` | Skapa arende | USER |
-| `PUT` | `/api/arenden/{id}/close` | Stäng arende | ADMIN |
-
-### Hälsokontroll
+Implementera följande endpoint i `DokumentController`:
 
 | Metod | URL | Beskrivning |
 |-------|-----|-------------|
-| `GET` | `/actuator/health` | Applikationsstatus (ingen auth krävs) |
-| `GET` | `/actuator/health/liveness` | Liveness probe (Kubernetes/OpenShift) |
-| `GET` | `/actuator/health/readiness` | Readiness probe (Kubernetes/OpenShift) |
+| `GET` | `/api/dokuments/{id}` | Hämta ett specifikt dokument via ID |
+
+Önskat resultat:
+
+- Isolering per organisation måste gälla – en användare får aldrig se ett dokument från en annan organisation.
+- Returnera `404 Not Found` om dokumentet inte finns eller tillhör annan organisation.
+- Ingen säkerhetslogik får ligga i controllern.
 
 ---
 
-## Projektstruktur
+### C. Filtrera arenden på status
 
-```
-src/main/java/se/exempel/sds/
-├── controller/        # Tunna REST-controllers, ingen affärslogik
-├── service/           # Affärsregler och säkerhetskontroller
-├── repository/        # Spring Data JPA-repositories
-├── domain/            # JPA-entiteter och enums
-├── dto/               # Request/response-objekt
-├── security/          # JWT-konvertering och principal-klass
-├── config/            # Spring-konfiguration
-└── exception/         # Globala undantagshanterare
+`GET /api/arenden` returnerar idag alla arenden för organisationen oavsett status.
+Utöka endpointen med en valfri frågeparameter för att filtrera på status.
 
-src/main/resources/
-├── application.yaml   # Konfiguration för dev- och prod-profiler
-├── schema.sql         # Databasschema för dev (H2)
-└── logback-spring.xml # Loggkonfiguration
-```
+Önskat beteende:
 
----
+| Request | Svar |
+|---------|------|
+| `GET /api/arenden` | Alla arenden (oförändrat) |
+| `GET /api/arenden?status=OPEN` | Endast öppna arenden |
+| `GET /api/arenden?status=CLOSED` | Endast stängda arenden |
 
-## Bygga projektet
+Önskat resultat:
 
-```bash
-# Kompilera och kör tester
-mvn verify
-
-# Bygg körbar JAR
-mvn package -DskipTests
-
-# Kör enbart tester
-mvn test
-```
+- Ändringen berör repository, service och controller.
+- Organisationsisolering gäller oavsett filter.
+- Ingen logik får ligga i controllern.

@@ -11,10 +11,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import org.junit.jupiter.api.Disabled;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.assertj.core.api.Assertions.assertThatNoException;
 
+// UPPGIFT A – Ta bort @Disabled när du har implementerat JwtOrganisationConverter.convert().
+// Alla tester i den här klassen ska vara gröna när uppgiften är klar.
+@Disabled("Uppgift A ej implementerad")
 class JwtOrganisationConverterTest {
 
     private final JwtOrganisationConverter converter = new JwtOrganisationConverter();
@@ -58,7 +62,6 @@ class JwtOrganisationConverterTest {
 
         UsernamePasswordAuthenticationToken token =
                 (UsernamePasswordAuthenticationToken) converter.convert(jwt);
-
         assertThat(token.getCredentials()).isSameAs(jwt);
     }
 
